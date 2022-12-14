@@ -14,8 +14,10 @@ using namespace std;
 //! \param n The input absolute 64-bit sequence number
 //! \param isn The initial sequence number
 WrappingInt32 wrap(uint64_t n, WrappingInt32 isn) {
-    DUMMY_CODE(n, isn);
-    return WrappingInt32{0};
+    // 将 abs_seqno 和 isn 相加后取低 32 位转换为 seqno
+    uint64_t target = n + static_cast<uint64_t>(isn.raw_value());
+    uint32_t target_32 = static_cast<uint32_t>(target & 0xffffffff);
+    return WrappingInt32{target_32};
 }
 
 //! Transform a WrappingInt32 into an "absolute" 64-bit sequence number (zero-indexed)
@@ -29,6 +31,25 @@ WrappingInt32 wrap(uint64_t n, WrappingInt32 isn) {
 //! and the other stream runs from the remote TCPSender to the local TCPReceiver and
 //! has a different ISN.
 uint64_t unwrap(WrappingInt32 n, WrappingInt32 isn, uint64_t checkpoint) {
-    DUMMY_CODE(n, isn, checkpoint);
-    return {};
+    // 将 seqno 和 isn 相减，因为是无符号整数减法可以直接得到 abs_seqno 的低32位
+    uint32_t seqno = n.raw_value();
+    uint32_t isnno = isn.raw_value();
+    uint64_t abs_seqno = static_cast<uint64_t>(seqno - isnno);
+
+    /**
+     *  存在两种情况
+     *  1. abs_seqno >= checkpoint，此时 abs_seqno 就是最终的结果
+     *  2. abs_seqno < checkpoint，此时 abs_seqno + n * 2^32 <= checkpoint <= abs_seqno + (n + 1) * 2^32
+     * real_abs_seqno = abs_seqno + n * 2^32 | abs_seqno + (n + 1) * 2^32
+     * n = (checkpoint - abs_seqno) >> 32，此时比较 两个可能的值
+     */
+    if (checkpoint > abs_seqno) {
+        uint64_t diff = checkpoint - abs_seqno;
+        uint64_t low = diff & 0xffffffff;
+        abs_seqno += (diff >> 32) << 32;
+        if (low >= 0x80000000) {
+            abs_seqno += 0x100000000;
+        }
+    }
+    return abs_seqno;
 }
