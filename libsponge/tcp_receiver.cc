@@ -10,8 +10,43 @@ void DUMMY_CODE(Targs &&... /* unused */) {}
 
 using namespace std;
 
-void TCPReceiver::segment_received(const TCPSegment &seg) { DUMMY_CODE(seg); }
+void TCPReceiver::segment_received(const TCPSegment &seg) {
+    const TCPHeader &header = seg.header();
+    WrappingInt32 seqno = header.seqno;
 
-optional<WrappingInt32> TCPReceiver::ackno() const { return {}; }
+    // 当包含 SYN 的 Segment 没有到来前，其他的 Segment 都会被遗弃
+    // 包含 SYN 的 Segment 到来后，设置 isn = seqno
+    if (!_isn.has_value()) {
+        if (header.syn) {
+            _isn = seqno;
+        } else {
+            return;
+        }
+    }
 
-size_t TCPReceiver::window_size() const { return {}; }
+    // 根据 bytestream 写出的字节数 + 1（还要计算开头的 SYN），得到 checkpoint，即 Accept 的最后一个字节的 absolute
+    // index
+    uint64_t abs_ackno = _reassembler.stream_out().bytes_written() + 1;
+    // 根据 checkpoint、seqno 和 isn 计算得到 absolute seqno
+    uint64_t abs_seqno = unwrap(seqno, _isn.value(), abs_ackno);
+    // 根据 absolute seqno 计算 stream index
+    uint64_t stream_index = abs_seqno - 1 + (header.syn ? 1 : 0);
+    _reassembler.push_substring(seg.payload().copy(), stream_index, header.fin);
+}
+
+optional<WrappingInt32> TCPReceiver::ackno() const {
+    if (_isn.has_value()) {
+        // 计算 Accept 的最后一个字节的 absolute seqno，即为 absolute ackno
+        uint64_t abs_ackno = _reassembler.stream_out().bytes_written() + 1;
+        // 注意到，如果已经传输了 FIN，则最后一个 absolute ackno 需要加上最后一位的 FIN
+        if (_reassembler.stream_out().input_ended()) {
+            ++abs_ackno;
+        }
+        // 将 absolute ackno 转换为 seqno
+        return wrap(abs_ackno, _isn.value());
+    }
+    // 如果没有任何一个 Segment 被接收，返回 nullopt
+    return nullopt;
+}
+
+size_t TCPReceiver::window_size() const { return _capacity - _reassembler.stream_out().buffer_size(); }

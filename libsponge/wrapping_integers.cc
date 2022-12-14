@@ -15,9 +15,7 @@ using namespace std;
 //! \param isn The initial sequence number
 WrappingInt32 wrap(uint64_t n, WrappingInt32 isn) {
     // 将 abs_seqno 和 isn 相加后取低 32 位转换为 seqno
-    uint64_t target = n + static_cast<uint64_t>(isn.raw_value());
-    uint32_t target_32 = static_cast<uint32_t>(target & 0xffffffff);
-    return WrappingInt32{target_32};
+    return WrappingInt32{isn + static_cast<uint32_t>(n)};
 }
 
 //! Transform a WrappingInt32 into an "absolute" 64-bit sequence number (zero-indexed)
