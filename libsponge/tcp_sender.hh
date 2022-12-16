@@ -17,20 +17,28 @@
 //! segments if the retransmission timer expires.
 class TCPSender {
   private:
+    //! whether the TCPSender has send out SYN segment
     bool _set_syn{false};
-    
+
+    //! whether the TCPSender has send out FIN segment
     bool _set_fin{false};
-    
+
+    //! RTO timeout
     size_t _time_out;
 
+    //! Timer pass time
     size_t _time_pass{0};
 
+    //! outbound queue of segments that the TCPSender has already sent
     std::queue<TCPSegment> _segments_outgoing{};
 
+    //! window size
     uint16_t _window_size{1};
 
+    //! count of consecutive retransmissions
     unsigned int _consecutive_retransmissions{0};
 
+    //! sum of segments' size that the TCPSender has already sent
     uint64_t _outgoing_size{0};
 
     //! our initial sequence number, the number for our SYN.
