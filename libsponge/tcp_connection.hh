@@ -21,6 +21,13 @@ class TCPConnection {
     //! in case the remote TCPConnection doesn't know we've received its whole stream?
     bool _linger_after_streams_finish{true};
 
+    bool _active{false};
+
+    size_t _time_since_last_segment_received_ms{0};
+
+    //! \brief End the connection and send a RST segment if necessary
+    void end_connection(bool send_rst);
+
   public:
     //! \name "Input" interface for the writer
     //!@{
@@ -31,6 +38,9 @@ class TCPConnection {
     //! \brief Write data to the outbound byte stream, and send it over TCP if possible
     //! \returns the number of bytes from `data` that were actually written.
     size_t write(const std::string &data);
+
+    //! \brief Send segment to connected peer
+    void send_segment_out();
 
     //! \returns the number of `bytes` that can be written right now.
     size_t remaining_outbound_capacity() const;
