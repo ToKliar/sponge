@@ -18,7 +18,7 @@ size_t TCPConnection::bytes_in_flight() const { return _sender.bytes_in_flight()
 
 size_t TCPConnection::unassembled_bytes() const { return _receiver.unassembled_bytes(); }
 
-size_t TCPConnection::time_since_last_segment_received() const { return {}; }
+size_t TCPConnection::time_since_last_segment_received() const { return _time_since_last_segment_received_ms; }
 
 void TCPConnection::segment_received(const TCPSegment &seg) { 
     _time_since_last_segment_received_ms = 0;
@@ -37,7 +37,25 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         }
     }
 
-    if (_receiver.ackno().has_value() && seg.length_in_sequence_space() == 0 && seg.header().seqno == _receiver.ackno().value() - 1) {
+    if (TCPState::state_summary(_receiver) == TCPReceiverStateSummary::SYN_RECV && 
+        TCPState::state_summary(_sender) == TCPSenderStateSummary::CLOSED) {
+        connect();
+        return;
+    }
+
+    if (TCPState::state_summary(_receiver) == TCPReceiverStateSummary::FIN_RECV && 
+        TCPState::state_summary(_sender) == TCPSenderStateSummary::SYN_ACKED) {
+        _linger_after_streams_finish = false;
+    }
+
+    if (TCPState::state_summary(_receiver) == TCPReceiverStateSummary::FIN_RECV && 
+        TCPState::state_summary(_sender) == TCPSenderStateSummary::FIN_ACKED &&
+        !_linger_after_streams_finish) {
+        _active = false;
+        return;
+    }
+
+    if (need_send_ack) {
         _sender.send_empty_segment();
     }
 
@@ -60,11 +78,19 @@ void TCPConnection::tick(const size_t ms_since_last_tick) {
         // abort the connection, and send a reset segment to the peer
         _sender.segments_out().pop();
         end_connection(true);
+        return;
     }
 
+    send_segment_out();
     _time_since_last_segment_received_ms += ms_since_last_tick;
     // end the connection cleanly if necessary
-    send_segment_out();
+    
+
+    if (TCPState::state_summary(_receiver) == TCPReceiverStateSummary::FIN_RECV && 
+        TCPState::state_summary(_sender) == TCPSenderStateSummary::FIN_ACKED &&
+        _linger_after_streams_finish && _time_since_last_segment_received_ms >= 10 * _cfg.rt_timeout) {
+        _active = _linger_after_streams_finish = false;
+    }
 }
 
 void TCPConnection::end_input_stream() {
@@ -94,7 +120,7 @@ void TCPConnection::end_connection(bool send_rst) {
     if (send_rst) {
         TCPSegment segment;
         segment.header().rst = true;
-        _sender.segments_out().push(segment);
+        _segments_out.push(segment);
     }
     _sender.stream_in().set_error();
     _receiver.stream_out().set_error();
@@ -109,7 +135,8 @@ void TCPConnection::send_segment_out() {
         if (_receiver.ackno().has_value()) {
             segment.header().ack = true;
             segment.header().ackno = _receiver.ackno().value();
-            segment.header().win = _receiver.window_size();
+            segment.header().win = _receiver.window_size() <= numeric_limits<uint16_t>::max() ?
+                _receiver.window_size() : numeric_limits<uint16_t>::max();
         }
         _segments_out.push(segment);
     }
