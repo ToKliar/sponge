@@ -16,9 +16,10 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
 
     // 当包含 SYN 的 Segment 没有到来前，其他的 Segment 都会被遗弃
     // 包含 SYN 的 Segment 到来后，设置 isn = seqno
-    if (!_isn.has_value()) {
+    if (!_set_syn) {
         if (header.syn) {
             _isn = seqno;
+            _set_syn = true;
         } else {
             return;
         }
@@ -28,14 +29,14 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
     // index
     uint64_t abs_ackno = _reassembler.stream_out().bytes_written() + 1;
     // 根据 checkpoint、seqno 和 isn 计算得到 absolute seqno
-    uint64_t abs_seqno = unwrap(seqno, _isn.value(), abs_ackno);
+    uint64_t abs_seqno = unwrap(seqno, _isn, abs_ackno);
     // 根据 absolute seqno 计算 stream index
     uint64_t stream_index = abs_seqno - 1 + (header.syn ? 1 : 0);
     _reassembler.push_substring(seg.payload().copy(), stream_index, header.fin);
 }
 
 optional<WrappingInt32> TCPReceiver::ackno() const {
-    if (_isn.has_value()) {
+    if (_set_syn) {
         // 计算 Accept 的最后一个字节的 absolute seqno，即为 absolute ackno
         uint64_t abs_ackno = _reassembler.stream_out().bytes_written() + 1;
         // 注意到，如果已经传输了 FIN，则最后一个 absolute ackno 需要加上最后一位的 FIN
@@ -43,7 +44,7 @@ optional<WrappingInt32> TCPReceiver::ackno() const {
             ++abs_ackno;
         }
         // 将 absolute ackno 转换为 seqno
-        return wrap(abs_ackno, _isn.value());
+        return _isn + abs_ackno;
     }
     // 如果没有任何一个 Segment 被接收，返回 nullopt
     return nullopt;

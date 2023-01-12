@@ -21,8 +21,12 @@ size_t TCPConnection::unassembled_bytes() const { return _receiver.unassembled_b
 size_t TCPConnection::time_since_last_segment_received() const { return _time_since_last_segment_received_ms; }
 
 void TCPConnection::segment_received(const TCPSegment &seg) { 
+    if (!_active) {
+        return;
+    }
     _time_since_last_segment_received_ms = 0;
     bool need_send_ack = seg.length_in_sequence_space();
+    
     _receiver.segment_received(seg);
 
     if (seg.header().rst) {
@@ -73,6 +77,9 @@ size_t TCPConnection::write(const string &data) {
 
 //! \param[in] ms_since_last_tick number of milliseconds since the last call to this method
 void TCPConnection::tick(const size_t ms_since_last_tick) { 
+    if (_active) {
+        return;
+    }
     _sender.tick(ms_since_last_tick);
     if (_sender.consecutive_retransmissions() > _cfg.MAX_RETX_ATTEMPTS) {
         // abort the connection, and send a reset segment to the peer
@@ -109,7 +116,7 @@ TCPConnection::~TCPConnection() {
     try {
         if (active()) {
             cerr << "Warning: Unclean shutdown of TCPConnection\n";
-            end_connection(true);
+            end_connection(false);
         }
     } catch (const exception &e) {
         std::cerr << "Exception destructing TCP FSM: " << e.what() << std::endl;

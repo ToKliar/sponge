@@ -32,9 +32,9 @@ void TCPSender::fill_window() {
     // 当有空间传输新的 Segment 时
     while (curr_windows_size > _outgoing_size) {
         // 如果已经发送了最后一个 Segment 就无需重复发送了
-        if (_set_fin) {
-            break;
-        }
+        // if (_set_fin) {
+        //     break;
+        // }
 
         TCPSegment segment;
         // 如果还没发送第一个 Segment (SYN Segment)，则设置 Segment 的 SYN 标记
@@ -69,6 +69,7 @@ void TCPSender::fill_window() {
         // 如果尚未发送 Segment 或者 之前发送的 Segment 都已经 ACK，则重启超时的定时器
         if (_segments_outgoing.empty()) {
             _time_pass = 0;
+            _time_out = _initial_retransmission_timeout;
         }
 
         // 发送 Segment，将其保存在已发送未 ACK 的 Segment 队列中，更新已发送未 ACK 的 Segment 的大小总和，更新
@@ -128,10 +129,10 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
         TCPSegment segment = _segments_outgoing.front();
         // 如果此时 window_size > 0，说明出现网络拥堵，增加连续重传次数，将超时时间加倍
         if (_window_size > 0) {
-            _consecutive_retransmissions++;
             _time_out *= 2;
         }
         _time_pass = 0;
+        _consecutive_retransmissions++;
         _segments_out.push(segment);
     }
 }
