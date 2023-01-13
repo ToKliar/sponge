@@ -21,9 +21,6 @@ size_t TCPConnection::unassembled_bytes() const { return _receiver.unassembled_b
 size_t TCPConnection::time_since_last_segment_received() const { return _time_since_last_segment_received_ms; }
 
 void TCPConnection::segment_received(const TCPSegment &seg) { 
-    if (!_active) {
-        return;
-    }
     _time_since_last_segment_received_ms = 0;
     bool need_send_ack = seg.length_in_sequence_space();
     
@@ -77,9 +74,6 @@ size_t TCPConnection::write(const string &data) {
 
 //! \param[in] ms_since_last_tick number of milliseconds since the last call to this method
 void TCPConnection::tick(const size_t ms_since_last_tick) { 
-    if (_active) {
-        return;
-    }
     _sender.tick(ms_since_last_tick);
     if (_sender.consecutive_retransmissions() > _cfg.MAX_RETX_ATTEMPTS) {
         // abort the connection, and send a reset segment to the peer
@@ -107,8 +101,8 @@ void TCPConnection::end_input_stream() {
 }
 
 void TCPConnection::connect() {
-    _active = true;
     _sender.fill_window();
+    _active = true;
     send_segment_out();
 }
 
@@ -142,8 +136,7 @@ void TCPConnection::send_segment_out() {
         if (_receiver.ackno().has_value()) {
             segment.header().ack = true;
             segment.header().ackno = _receiver.ackno().value();
-            segment.header().win = _receiver.window_size() <= numeric_limits<uint16_t>::max() ?
-                _receiver.window_size() : numeric_limits<uint16_t>::max();
+            segment.header().win = _receiver.window_size();
         }
         _segments_out.push(segment);
     }

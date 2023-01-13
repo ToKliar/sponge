@@ -28,6 +28,9 @@ class TCPConnection {
     //! \brief End the connection and send a RST segment if necessary
     void end_connection(bool send_rst);
 
+    //! \brief Send segment to connected peer
+    void send_segment_out();
+
   public:
     //! \name "Input" interface for the writer
     //!@{
@@ -38,9 +41,6 @@ class TCPConnection {
     //! \brief Write data to the outbound byte stream, and send it over TCP if possible
     //! \returns the number of bytes from `data` that were actually written.
     size_t write(const std::string &data);
-
-    //! \brief Send segment to connected peer
-    void send_segment_out();
 
     //! \returns the number of `bytes` that can be written right now.
     size_t remaining_outbound_capacity() const;

@@ -8,6 +8,7 @@
 
 #include <functional>
 #include <queue>
+#include <map>
 
 //! \brief The "sender" part of a TCP implementation.
 
@@ -24,22 +25,24 @@ class TCPSender {
     bool _set_fin{false};
 
     //! RTO timeout
-    size_t _time_out;
+    int _time_out{-1};
 
     //! Timer pass time
-    size_t _time_pass{0};
+    int _time_pass{0};
 
     //! outbound queue of segments that the TCPSender has already sent
-    std::queue<TCPSegment> _segments_outgoing{};
+    // std::queue<TCPSegment> _segments_outgoing{};
+
+    std::map<size_t, TCPSegment> _outgoing_map{};
 
     //! window size
     uint16_t _window_size{1};
 
     //! count of consecutive retransmissions
-    unsigned int _consecutive_retransmissions{0};
+    size_t _consecutive_retransmissions{0};
 
     //! sum of segments' size that the TCPSender has already sent
-    uint64_t _outgoing_size{0};
+    size_t _outgoing_size{0};
 
     //! our initial sequence number, the number for our SYN.
     WrappingInt32 _isn;

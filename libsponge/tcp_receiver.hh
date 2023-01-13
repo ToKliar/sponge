@@ -22,14 +22,14 @@ class TCPReceiver {
     //! The maximum number of bytes we'll store.
     size_t _capacity;
 
-    bool _set_syn{false};
+    bool _set_syn;
 
   public:
     //! \brief Construct a TCP receiver
     //!
     //! \param capacity the maximum number of bytes that the receiver will
     //!                 store in its buffers at any give time.
-    TCPReceiver(const size_t capacity) : _isn(0), _reassembler(capacity), _capacity(capacity) {}
+    TCPReceiver(const size_t capacity) : _isn(0), _reassembler(capacity), _capacity(capacity), _set_syn(false) {}
 
     //! \name Accessors to provide feedback to the remote TCPSender
     //!@{
