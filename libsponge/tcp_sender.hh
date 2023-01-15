@@ -31,12 +31,10 @@ class TCPSender {
     int _time_pass{0};
 
     //! outbound queue of segments that the TCPSender has already sent
-    // std::queue<TCPSegment> _segments_outgoing{};
-
-    std::map<size_t, TCPSegment> _outgoing_map{};
+    std::queue<TCPSegment> _segments_outgoing{};
 
     //! window size
-    uint16_t _window_size{1};
+    size_t _window_size{1};
 
     //! count of consecutive retransmissions
     size_t _consecutive_retransmissions{0};

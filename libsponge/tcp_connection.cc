@@ -129,6 +129,7 @@ void TCPConnection::end_connection(bool send_rst) {
     _linger_after_streams_finish = false;
 }
 
+//! Send segments in TCP sender out 
 void TCPConnection::send_segment_out() {
     while (!_sender.segments_out().empty()) {
         TCPSegment segment = _sender.segments_out().front();

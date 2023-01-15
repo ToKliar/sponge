@@ -28,43 +28,26 @@ WrappingInt32 wrap(uint64_t n, WrappingInt32 isn) {
 //! runs from the local TCPSender to the remote TCPReceiver and has one ISN,
 //! and the other stream runs from the remote TCPSender to the local TCPReceiver and
 //! has a different ISN.
-// uint64_t unwrap(WrappingInt32 n, WrappingInt32 isn, uint64_t checkpoint) {
-//     // 将 seqno 和 isn 相减，因为是无符号整数减法可以直接得到 abs_seqno 的低32位
-//     uint32_t seqno = n.raw_value();
-//     uint32_t isnno = isn.raw_value();
-//     uint64_t abs_seqno = static_cast<uint64_t>(seqno - isnno);
-
-//     /**
-//      *  存在两种情况
-//      *  1. abs_seqno >= checkpoint，此时 abs_seqno 就是最终的结果
-//      *  2. abs_seqno < checkpoint，此时 abs_seqno + n * 2^32 <= checkpoint <= abs_seqno + (n + 1) * 2^32
-//      * real_abs_seqno = abs_seqno + n * 2^32 | abs_seqno + (n + 1) * 2^32
-//      * n = (checkpoint - abs_seqno) >> 32，此时比较 两个可能的值
-//      */
-//     if (checkpoint > abs_seqno) {
-//         uint64_t diff = checkpoint - abs_seqno;
-//         uint64_t low = diff & 0xffffffff;
-//         abs_seqno += (diff >> 32) << 32;
-//         if (low >= 0x80000000) {
-//             abs_seqno += 0x100000000;
-//         }
-//     }
-//     return abs_seqno;
-// }
-
 uint64_t unwrap(WrappingInt32 n, WrappingInt32 isn, uint64_t checkpoint) {
-    // 32位的范围
-    const constexpr uint64_t INT32_RANGE = 1l << 32;
-    // 获取 n 与 isn 之间的偏移量（mod）
-    // 实际的 absolute seqno % INT32_RANGE == offset
-    uint32_t offset = n - isn;
-    /// NOTE: 最大的坑点！如果 checkpoint 比 offset 大，那么就需要进行四舍五入
-    /// NOTE: 但是!!! 如果 checkpoint 比 offset 还小，那就只能向上入了，即此时的 offset 就是 abs seqno
-    if (checkpoint > offset) {
-        // 加上半个 INT32_RANGE 是为了四舍五入
-        uint64_t real_checkpoint = (checkpoint - offset) + (INT32_RANGE >> 1);
-        uint64_t wrap_num = real_checkpoint / INT32_RANGE;
-        return wrap_num * INT32_RANGE + offset;
-    } else
-        return offset;
+    // 将 seqno 和 isn 相减，因为是无符号整数减法可以直接得到 abs_seqno 的低32位
+    uint32_t seqno = n.raw_value();
+    uint32_t isnno = isn.raw_value();
+    uint64_t abs_seqno = static_cast<uint64_t>(seqno - isnno);
+
+    /**
+     *  存在两种情况
+     *  1. abs_seqno >= checkpoint，此时 abs_seqno 就是最终的结果
+     *  2. abs_seqno < checkpoint，此时 abs_seqno + n * 2^32 <= checkpoint <= abs_seqno + (n + 1) * 2^32
+     * real_abs_seqno = abs_seqno + n * 2^32 | abs_seqno + (n + 1) * 2^32
+     * n = (checkpoint - abs_seqno) >> 32，此时比较 两个可能的值
+     */
+    if (checkpoint > abs_seqno) {
+        uint64_t diff = checkpoint - abs_seqno;
+        uint64_t low = diff & 0xffffffff;
+        abs_seqno += (diff >> 32) << 32;
+        if (low >= 0x80000000) {
+            abs_seqno += 0x100000000;
+        }
+    }
+    return abs_seqno;
 }
