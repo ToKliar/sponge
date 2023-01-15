@@ -51,7 +51,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
 
     // 如果 Receiver 收到了 FIN 包（FIN_RECV 状态），说明此时另一端发送的数据已经被全部收到了
     // 此时 Sender （SYN_ACK 状态，收到了 SYN 包但是没有发送 FIN 包）还有数据需要传输给另一端
-    // 此时开始 _linger_after_streams_finish = false，表明此时断开连接对这一端没有损失（所有数据都收到了）
+    // 此时需要设置 _linger_after_streams_finish = false，表明此时断开连接对这一端没有损失（所有数据都收到了）
     if (TCPState::state_summary(_receiver) == TCPReceiverStateSummary::FIN_RECV && 
         TCPState::state_summary(_sender) == TCPSenderStateSummary::SYN_ACKED) {
         _linger_after_streams_finish = false;
@@ -110,7 +110,8 @@ void TCPConnection::tick(const size_t ms_since_last_tick) {
     // 此时 Sender （FIN_ACK 状态，发送了 FIN 包并且收到了 ACK），说明这一端需要发送的数据全部被接收到了
     // _linger_after_streams_finish == true 说明收到 FIN 包时已经发送了 FIN 包
     // 此时可能对于收到的 FIN 包的 ACK 包对面无法收到然后重发 FIN 包，所以需要等待一段时间处理另一端重传的 FIN 包
-    // 超时后可以断开连接 clean shutdown
+    // 超时后可以断开连接 clean shutdown，此时要么另一端收到了 FIN-ACK，要么另一端连接已经断开或者因为网络问题无法再次传送 FIN 包过来
+    // 无论另一端什么情况，这一端已经可以确定两端要发送的数据都被接收到了
     if (TCPState::state_summary(_receiver) == TCPReceiverStateSummary::FIN_RECV && 
         TCPState::state_summary(_sender) == TCPSenderStateSummary::FIN_ACKED &&
         _linger_after_streams_finish && _time_since_last_segment_received_ms >= 10 * _cfg.rt_timeout) {
@@ -137,7 +138,7 @@ TCPConnection::~TCPConnection() {
         if (active()) {
             // Connection 对象删除时如果连接还处于活跃状态，需要断开 unclean shutdown
             cerr << "Warning: Unclean shutdown of TCPConnection\n";
-            end_connection(false);
+            end_connection(true);
         }
     } catch (const exception &e) {
         std::cerr << "Exception destructing TCP FSM: " << e.what() << std::endl;
