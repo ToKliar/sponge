@@ -22,13 +22,13 @@ size_t TCPConnection::time_since_last_segment_received() const { return _time_si
 
 void TCPConnection::segment_received(const TCPSegment &seg) { 
     _time_since_last_segment_received_ms = 0;
-    // 对于非空的报文，需要发送 ACK（一个空包）
+    // 对于非空的包（可能是一个 keep-live 包），需要发送 ACK（一个空包）
     bool need_send_ack = seg.length_in_sequence_space();
     
     // Connection 对应的 TCPReceiver 处理收到的 Segment
     _receiver.segment_received(seg);
 
-    // 如果收到的 Segment 中有 RST，则直接（不正常，说明出错了）断开连接（unclean shutdown），不需要发送 RST 报文
+    // 如果收到的 Segment 中有 RST，则直接（不正常，说明出错了）断开连接（unclean shutdown），不需要发送 RST 包
     if (seg.header().rst) {
         end_connection(false);
         return;
