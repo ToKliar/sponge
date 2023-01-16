@@ -50,12 +50,12 @@ class Router {
     //! datagram's destination address.
     void route_one_datagram(InternetDatagram &dgram);
 
-    //! Route entry in Route table 
+    //! Route entry in Route table
     struct RouteEntry {
         const uint32_t route_prefix;
         const uint8_t prefix_length;
         const std::optional<Address> next_hop;
-        const size_t interface_idx;        
+        const size_t interface_idx;
     };
 
     //! Route table

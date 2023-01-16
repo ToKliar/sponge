@@ -20,11 +20,11 @@ size_t TCPConnection::unassembled_bytes() const { return _receiver.unassembled_b
 
 size_t TCPConnection::time_since_last_segment_received() const { return _time_since_last_segment_received_ms; }
 
-void TCPConnection::segment_received(const TCPSegment &seg) { 
+void TCPConnection::segment_received(const TCPSegment &seg) {
     _time_since_last_segment_received_ms = 0;
     // 对于非空的包（可能是一个 keep-live 包），需要发送 ACK（一个空包）
     bool need_send_ack = seg.length_in_sequence_space();
-    
+
     // Connection 对应的 TCPReceiver 处理收到的 Segment
     _receiver.segment_received(seg);
 
@@ -32,9 +32,10 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
     if (seg.header().rst) {
         end_connection(false);
         return;
-    }        
-    
-    // 如果收到的包中包含 ACK，首先 TCPSender 根据 ackno 和 win 进行处理，如果处理后 TCPSender 没有需要发送的包，则发送一个空包作为对这个包的 ACK
+    }
+
+    // 如果收到的包中包含 ACK，首先 TCPSender 根据 ackno 和 win 进行处理，如果处理后 TCPSender
+    // 没有需要发送的包，则发送一个空包作为对这个包的 ACK
     if (seg.header().ack) {
         _sender.ack_received(seg.header().ackno, seg.header().win);
         if (need_send_ack && !_sender.segments_out().empty()) {
@@ -42,8 +43,9 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         }
     }
 
-    // 如果 Receiver 收到了 SYN 包，但是 Sender 并未建立连接（处于 CLOSED 阶段，没有给另一端的 Connection 发送 SYN 包），则建立连接（主动发送 SYN 包）
-    if (TCPState::state_summary(_receiver) == TCPReceiverStateSummary::SYN_RECV && 
+    // 如果 Receiver 收到了 SYN 包，但是 Sender 并未建立连接（处于 CLOSED 阶段，没有给另一端的 Connection 发送 SYN
+    // 包），则建立连接（主动发送 SYN 包）
+    if (TCPState::state_summary(_receiver) == TCPReceiverStateSummary::SYN_RECV &&
         TCPState::state_summary(_sender) == TCPSenderStateSummary::CLOSED) {
         connect();
         return;
@@ -52,7 +54,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
     // 如果 Receiver 收到了 FIN 包（FIN_RECV 状态），说明此时另一端发送的数据已经被全部收到了
     // 此时 Sender （SYN_ACK 状态，收到了 SYN 包但是没有发送 FIN 包）还有数据需要传输给另一端
     // 此时需要设置 _linger_after_streams_finish = false，表明此时断开连接对这一端没有损失（所有数据都收到了）
-    if (TCPState::state_summary(_receiver) == TCPReceiverStateSummary::FIN_RECV && 
+    if (TCPState::state_summary(_receiver) == TCPReceiverStateSummary::FIN_RECV &&
         TCPState::state_summary(_sender) == TCPSenderStateSummary::SYN_ACKED) {
         _linger_after_streams_finish = false;
     }
@@ -61,9 +63,8 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
     // 此时 Sender （FIN_ACK 状态，发送了 FIN 包并且收到了 ACK），说明这一端需要发送的数据全部被接收到了
     // _linger_after_streams_finish == false 说明此时断开连接对这一端没有损失
     // 另一端收到了全部数据则断开连接对另一端也没有损失，此时可以正常断开连接（clean shutdown）
-    if (TCPState::state_summary(_receiver) == TCPReceiverStateSummary::FIN_RECV && 
-        TCPState::state_summary(_sender) == TCPSenderStateSummary::FIN_ACKED &&
-        !_linger_after_streams_finish) {
+    if (TCPState::state_summary(_receiver) == TCPReceiverStateSummary::FIN_RECV &&
+        TCPState::state_summary(_sender) == TCPSenderStateSummary::FIN_ACKED && !_linger_after_streams_finish) {
         _active = false;
         return;
     }
@@ -88,8 +89,8 @@ size_t TCPConnection::write(const string &data) {
 }
 
 //! \param[in] ms_since_last_tick number of milliseconds since the last call to this method
-void TCPConnection::tick(const size_t ms_since_last_tick) { 
-    // sender 感知时间变化 
+void TCPConnection::tick(const size_t ms_since_last_tick) {
+    // sender 感知时间变化
     _sender.tick(ms_since_last_tick);
 
     // 如果 Sender 的重传次数超过最大次数，则断开连接，发送 RST 包给另一端
@@ -105,16 +106,17 @@ void TCPConnection::tick(const size_t ms_since_last_tick) {
 
     // 更新时间
     _time_since_last_segment_received_ms += ms_since_last_tick;
-    
+
     // 如果 Receiver 收到了 FIN 包（FIN_RECV 状态），说明此时另一端发送的数据已经被全部收到了
     // 此时 Sender （FIN_ACK 状态，发送了 FIN 包并且收到了 ACK），说明这一端需要发送的数据全部被接收到了
     // _linger_after_streams_finish == true 说明收到 FIN 包时已经发送了 FIN 包
     // 此时可能对于收到的 FIN 包的 ACK 包对面无法收到然后重发 FIN 包，所以需要等待一段时间处理另一端重传的 FIN 包
-    // 超时后可以断开连接 clean shutdown，此时要么另一端收到了 FIN-ACK，要么另一端连接已经断开或者因为网络问题无法再次传送 FIN 包过来
+    // 超时后可以断开连接 clean shutdown，此时要么另一端收到了
+    // FIN-ACK，要么另一端连接已经断开或者因为网络问题无法再次传送 FIN 包过来
     // 无论另一端什么情况，这一端已经可以确定两端要发送的数据都被接收到了
-    if (TCPState::state_summary(_receiver) == TCPReceiverStateSummary::FIN_RECV && 
-        TCPState::state_summary(_sender) == TCPSenderStateSummary::FIN_ACKED &&
-        _linger_after_streams_finish && _time_since_last_segment_received_ms >= 10 * _cfg.rt_timeout) {
+    if (TCPState::state_summary(_receiver) == TCPReceiverStateSummary::FIN_RECV &&
+        TCPState::state_summary(_sender) == TCPSenderStateSummary::FIN_ACKED && _linger_after_streams_finish &&
+        _time_since_last_segment_received_ms >= 10 * _cfg.rt_timeout) {
         _active = _linger_after_streams_finish = false;
     }
 }
@@ -160,10 +162,11 @@ void TCPConnection::end_connection(bool send_rst) {
     _linger_after_streams_finish = false;
 }
 
-//! Send segments in TCP sender out 
+//! Send segments in TCP sender out
 void TCPConnection::send_segment_out() {
     // 实际上是由 Connection 执行发送动作
-    // 从 Sender 中的 segments_out 中按顺序取出要发送的包（如果需要顺便发送 ACK 和 window_size，则附加在包里面），然后放在发送队列中，等待发送
+    // 从 Sender 中的 segments_out 中按顺序取出要发送的包（如果需要顺便发送 ACK 和
+    // window_size，则附加在包里面），然后放在发送队列中，等待发送
     while (!_sender.segments_out().empty()) {
         TCPSegment segment = _sender.segments_out().front();
         _sender.segments_out().pop();

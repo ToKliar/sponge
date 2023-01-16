@@ -28,18 +28,18 @@ void Router::add_route(const uint32_t route_prefix,
                        const size_t interface_num) {
     cerr << "DEBUG: adding route " << Address::from_ipv4_numeric(route_prefix).ip() << "/" << int(prefix_length)
          << " => " << (next_hop.has_value() ? next_hop->ip() : "(direct)") << " on interface " << interface_num << "\n";
-	
-	// 直接向路由表中添加条目	
-	_route_table.push_back({route_prefix, prefix_length, next_hop, interface_num});
+
+    // 直接向路由表中添加条目
+    _route_table.push_back({route_prefix, prefix_length, next_hop, interface_num});
 }
 
 //! \param[in] dgram The datagram to be routed
 void Router::route_one_datagram(InternetDatagram &dgram) {
-	// 读取数据报中的目标 IP 地址
+    // 读取数据报中的目标 IP 地址
     const uint32_t dst_ip_addr = dgram.header().dst;
     auto match_entry = _route_table.end();
 
-	// 进行最长前缀匹配，选出其中前缀长度最长的转发表条目
+    // 进行最长前缀匹配，选出其中前缀长度最长的转发表条目
     for (auto iter = _route_table.begin(); iter != _route_table.end(); iter++) {
         if (iter->prefix_length == 0 || (iter->route_prefix ^ dst_ip_addr) >> (32 - iter->prefix_length) == 0) {
             if (match_entry == _route_table.end() || match_entry->prefix_length < iter->prefix_length) {
@@ -48,8 +48,8 @@ void Router::route_one_datagram(InternetDatagram &dgram) {
         }
     }
 
-	// 如果匹配了某一转发表条目，并且数据报的 ttl > 1（确保可以继续转发） 
-	// 使用对应的输出端口进行转发，注意到转发表条目中下一跳地址可能为空，需要根据目标 IP 地址构建
+    // 如果匹配了某一转发表条目，并且数据报的 ttl > 1（确保可以继续转发）
+    // 使用对应的输出端口进行转发，注意到转发表条目中下一跳地址可能为空，需要根据目标 IP 地址构建
     if (match_entry != _route_table.end() && dgram.header().ttl-- > 1) {
         const optional<Address> next_hop = match_entry->next_hop;
         AsyncNetworkInterface &interface = _interfaces[match_entry->interface_idx];

@@ -5,10 +5,10 @@
 #include "tcp_over_ip.hh"
 #include "tun.hh"
 
+#include <list>
+#include <map>
 #include <optional>
 #include <queue>
-#include <map>
-#include <list>
 
 //! \brief A "network interface" that connects IP (the internet layer, or network layer)
 //! with Ethernet (the network access layer, or link layer).
@@ -35,13 +35,13 @@ class NetworkInterface {
   private:
     //! ARP Entry in ART table
     struct ARP_Entry {
-      EthernetAddress eth_address;
-      size_t ttl;
+        EthernetAddress eth_address;
+        size_t ttl;
     };
 
     //! ARP table
     std::map<uint32_t, ARP_Entry> _arp_table{};
-    
+
     //! ARP out of date time
     const size_t _arp_entry_ttl = 30 * 1000;
 

@@ -7,8 +7,8 @@
 #include "wrapping_integers.hh"
 
 #include <functional>
-#include <queue>
 #include <map>
+#include <queue>
 
 //! \brief The "sender" part of a TCP implementation.
 
